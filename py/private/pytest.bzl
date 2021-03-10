@@ -8,6 +8,10 @@ def _pytest_runner_impl(ctx):
         fail("No test files specified.")
 
     runner = ctx.actions.declare_file(ctx.attr.name)
+    cli_keys = ["--driver-binary=", "--browser-binary="]
+    pinned_browser_locations = []
+    for i, v in enumerate(ctx.attr.data):
+        pinned_browser_locations.append(cli_keys[i] + "$(location %s)" % v)
     ctx.actions.write(
         runner,
         """
@@ -17,7 +21,7 @@ if __name__ == "__main__":
 
     args =  ["-ra"]  + %s + sys.argv[1:] + %s
 
-    sys.exit(pytest.main(args))""" % (_stringify(ctx.attr.args), _stringify([src.path for src in ctx.files.srcs])),
+    sys.exit(pytest.main(args))""" % (_stringify(ctx.attr.args + pinned_browser_locations), _stringify([src.path for src in ctx.files.srcs])),
         is_executable = True,
     )
 
@@ -42,6 +46,9 @@ _pytest_runner = rule(
         "args": attr.string_list(
             default = [],
         ),
+        "data": attr.string_list(
+            default = [],
+        ),
         "python_version": attr.string(
             values = ["PY2", "PY3"],
             default = "PY3",
@@ -49,7 +56,7 @@ _pytest_runner = rule(
     },
 )
 
-def pytest_test(name, srcs, deps = None, args = None, python_version = None, **kwargs):
+def pytest_test(name, srcs, deps = None, args = None, python_version = None, data = [], **kwargs):
     runner_target = "%s-runner.py" % name
 
     _pytest_runner(
@@ -59,6 +66,7 @@ def pytest_test(name, srcs, deps = None, args = None, python_version = None, **k
         deps = deps,
         args = args,
         python_version = python_version,
+        data = data
     )
 
     py_test(
